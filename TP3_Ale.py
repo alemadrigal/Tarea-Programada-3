@@ -7,10 +7,13 @@ import qrcode
 import os
 from reportlab.pdfgen import canvas
 
+
+#Variables Globales
 nombreArchivo = "memoriaPrincipal"
 listaEstacionamiento = lee(nombreArchivo)
 
-#============Botones==============
+#=================================
+#Funciones de inicio del programa
 def visualAmarilla(event=None):
     campo = tamaño.get().strip()
     electrico = electricos.get().strip()
@@ -53,8 +56,9 @@ def confirmar():
         marco1.destroy()
         marco2.place(relx=0.5, rely=0.5, anchor="center")
 
-#Fin Botones Inicio
-#Botones Marco2
+#Fin Funicones de Inicio
+#=================================================
+#Boton1 del menu y Marco2
 
         
 def obtenerVehiculos():
@@ -106,29 +110,40 @@ def obtenerVehiculos():
 
     botonRegresar = Button(marco3, text="Regresar", width=25, bg="red", fg="white", command=regresarMenu)
     botonRegresar.grid(row=7, column=1, padx=8, pady=(20, 0))
-#Fin botones marco3
-#========================
-#Botones marco4
-
+#Fin boton1 y marco3
+#=======================================================================================
+#Botone 2 y marco4
 
 def ventanaInfo(numeroCampo, colorCampo, actualizarPagina):
     ventanaDatos = Toplevel(interfaz)
     ventanaDatos.title("Información del campo")
     ventanaDatos.config(bg="gray")
 
-    carroSeleccionado = None
-    if len(listaEstacionamiento) > 1:
-        for carro in listaEstacionamiento[1]:
-            if str(carro.estadia[0]) == str(numeroCampo):
-                if str(carro.estadia[2]) == "":
-                    carroSeleccionado = carro
-                elif str(carro.estadia[2]) == "None":
-                    carroSeleccionado = carro
 
+#numeroCampo = 7
+# carro.estadia = [7, "01/07/2026 08:30", "None"]
+
+# str(carro.estadia[0]) == str(numeroCampo)  7=7 encontramos el carro en ese campo
+# str(carro.estadia[2]) == "None"    no a salido, sigue parkkk
+# ese se debe mostrar y/o pagar.
+    carroSeleccionado = None
+    if len(listaEstacionamiento) > 1: #mira si ya hay registro de carros
+        for carro in listaEstacionamiento[1]:
+            if str(carro.estadia[0]) == str(numeroCampo) and (str(carro.estadia[2]) == "" or str(carro.estadia[2]) == "None"):
+                carroSeleccionado = carro
+                break
     def pagar():
-        salida = datetime.now().strftime("%d/%m/%Y %H:%M")
+        fechaEntrada = datetime.strptime(carroSeleccionado.estadia[1], "%d/%m/%Y %H:%M")
+        fechaSalida = datetime.now()
+        salida = fechaSalida.strftime("%d/%m/%Y %H:%M")
         tipoPago = tipoPagoCaja.get()
-        monto = listaEstacionamiento[0].montoHora
+        minutos = (fechaSalida - fechaEntrada).total_seconds() / 60
+
+        if minutos <= listaEstacionamiento[0].tiempoGracia:
+            monto = 0
+        else:
+            monto = round((minutos / 60) * listaEstacionamiento[0].montoHora, 2)
+
         carroSeleccionado.estadia[2] = salida
         carroSeleccionado.pago = (monto, tipoPago)
         placa = carroSeleccionado.info[0]
@@ -136,6 +151,7 @@ def ventanaInfo(numeroCampo, colorCampo, actualizarPagina):
         infoQr = "PLACA=" + placa + " | MARCA=" + carroSeleccionado.info[1] + " | COLOR=" + carroSeleccionado.info[2] + " | TIPO=" + carroSeleccionado.info[3] + " | ENTRADA=" + carroSeleccionado.estadia[1] + " | SALIDA=" + salida + " | PAGO=" + tipoPago + " | MONTO=" + str(monto)
         nombreQr = "qrFactura_" + placa + ".png"
         nombrePdf = "factura_" + placa + "_" + nombreFecha + ".pdf"
+
         qrcode.make(infoQr).save(nombreQr)
         pdf = canvas.Canvas(nombrePdf)
         pdf.drawString(80, 750, "Factura de estacionamiento")
@@ -151,9 +167,11 @@ def ventanaInfo(numeroCampo, colorCampo, actualizarPagina):
         pdf.drawImage(nombreQr, 80, 380, width=150, height=150)
         pdf.save()
         os.remove(nombreQr)
+
         graba(nombreArchivo, listaEstacionamiento)
         actualizarPagina()
         ventanaDatos.destroy()
+    
 
     if colorCampo == "red" and carroSeleccionado != None:
         Label(ventanaDatos, text="#Campo:", bg="gray", fg="white").grid(row=0, column=0, padx=8, pady=6)
@@ -191,8 +209,15 @@ def ventanaInfo(numeroCampo, colorCampo, actualizarPagina):
         tipoPagoCaja.grid(row=5, column=1, padx=8, pady=6)
         tipoPagoCaja.set("Efectivo")
 
-        textoEstado = Label(ventanaDatos, text="Monto a pagar: " + str(listaEstacionamiento[0].montoHora), bg="gray", fg="yellow")
-        textoEstado.grid(row=6, column=0, columnspan=2, pady=6)
+        fechaEntradaTemporal = datetime.strptime(carroSeleccionado.estadia[1], "%d/%m/%Y %H:%M")
+        fechaSalidaTemporal = datetime.now()
+        minutosTemporal = (fechaSalidaTemporal - fechaEntradaTemporal).total_seconds() / 60
+        if minutosTemporal <= listaEstacionamiento[0].tiempoGracia:
+            montoTemporal = 0
+        else:
+            montoTemporal = round((minutosTemporal / 60) * listaEstacionamiento[0].montoHora, 2)
+        textoEstado = Label(ventanaDatos, text="Total a pagar: " + str(montoTemporal), bg="gray", fg="yellow").grid(row=6, column=0, columnspan=2, pady=6)
+
 
         Button(ventanaDatos, text="Pagar", width=15, bg="green", fg="white", command=pagar).grid(row=7, column=0, padx=8, pady=15)
         Button(ventanaDatos, text="Regresar", width=15, bg="red", fg="white", command=ventanaDatos.destroy).grid(row=7, column=1, padx=8, pady=15)
@@ -200,7 +225,8 @@ def ventanaInfo(numeroCampo, colorCampo, actualizarPagina):
     else:
         Label(ventanaDatos, text="El campo " + str(numeroCampo) + " está libre.", bg="gray", fg="white").grid(row=0, column=0, padx=20, pady=20)
         Button(ventanaDatos, text="Regresar", width=15, bg="red", fg="white", command=ventanaDatos.destroy).grid(row=1, column=0, pady=10)
-        
+
+#Quita el menu y coloca el marco con la visualizacion de los campos del estacionamiento
 def verEstacionamiento():
     marco2.place_forget()
     marco4 = Frame(interfaz, bg="gray", padx=30, pady=25, highlightcolor="white", highlightthickness=4)
@@ -225,11 +251,9 @@ def verEstacionamiento():
                 colorCampo = "green"
                 if len(listaEstacionamiento) > 1:
                     for carro in listaEstacionamiento[1]:
-                        if str(carro.estadia[0]) == str(numeroCampo):
-                            if str(carro.estadia[2]) == "":
-                                colorCampo = "red"
-                            elif str(carro.estadia[2]) == "None":
-                                colorCampo = "red"
+                        if str(carro.estadia[0]) == str(numeroCampo) and (str(carro.estadia[2]) == "" or str(carro.estadia[2]) == "None"):
+                            colorCampo = "red"
+                            #Si el carro está en ese campo, Y no tiene hora de salida es rojo
 
                 botonCampo = Button(marcoCampos, text=str(numeroCampo), width=8, height=4, bg=colorCampo, fg="white", command=lambda numeroCampo=numeroCampo, colorCampo=colorCampo: ventanaInfo(numeroCampo, colorCampo, mostrarPagina))
                 botonCampo.grid(row=fila, column=columna, padx=6, pady=6)
@@ -269,22 +293,24 @@ def verEstacionamiento():
 
     mostrarPagina()
 
-#==========================
-#Paso inicial
+#=========================================================================
+#Paso inicial, si hay una base de datos muestra el menu, sino pide lo basico y lo guarda
 def marcoInicial():
     if listaEstacionamiento == []:
         marco1.place(relx=0.5, rely=0.5, anchor="center")
     else:
         marco2.place(relx=0.5, rely=0.5, anchor="center")
 #==============================================================================
-#Creacion de la interfaz y Marco1
+#Creacion de la interfaz,  ventana inicial y Marco1
 interfaz = Tk() #Ventana principal
 interfaz.title("Sistema de administracion de estacionamientos")
 interfaz.geometry("700x500")
 interfaz.resizable(False, False)
 interfaz.config(bg="dim gray")
+
+#=========================================================================================
+#Primer marco/ventana de datos basicos
 marco1 = Frame(interfaz, bg="lime green", padx=30, pady=25,highlightcolor="white",highlightthickness=4)
-#marco1.place(relx=0.5, rely=0.5, anchor="center")
 
 
 titulo1 = Label(marco1, text="Ingrese la cantidad total de espacios del estacionamiento:",
@@ -332,7 +358,7 @@ montoHoraEntrada.grid(row=7, pady=(0, 15))
 
 
 #=================================================
-#Marco2
+#Marco2 Para menú en forma de semaforo
 marco2 = Frame(interfaz, bg="gray", padx=30, pady=25, highlightcolor="white", highlightthickness=4)   
 
 tituloMenu = Label(marco2, text="Menú principal", font=("Arial", 16, "bold"), bg="gray", fg="black")
@@ -348,7 +374,7 @@ tituloConfiguracion = Label(marco2, text="4) Configuración", font=("Arial", 13,
 tituloConfiguracion.grid(row=1, column=2, padx=8, pady=(0, 8))
 
 #========================================
-#Botones
+#Botones del menú principal
 botonObtenerVehiculos = Button(marco2, text="1) Obtener vehículos", width=30, bg="green", fg="white", command=obtenerVehiculos)
 botonObtenerVehiculos.grid(row=1, column=0, padx=8, pady=8)
 
@@ -381,6 +407,6 @@ botonAcercaDe.grid(row=5, column=1, padx=8, pady=(20, 0))
 
 
 
-
+#Arranque del programa final.
 marcoInicial()
 interfaz.mainloop()
