@@ -442,9 +442,8 @@ def abrirVentanaObtenerVehiculos(ventanaPadre):
 
 def abrirVentanaVerEstacionamiento(ventanaPadre):
     """
-    Funcionalidad: Abre la ventana que muestra la cuadricula visual del
-                   estacionamiento, con los espacios en verde (libre) o rojo
-                   (ocupado). Al hacer clic en un espacio libre permite estacionar.
+    Funcionalidad: Abre la ventana que muestra la cuadrícula visual del
+                   estacionamiento con scroll para evitar desbordamiento.
     Entradas:
         - ventanaPadre(tk.Tk): La ventana principal del programa.
     Salidas: Ninguna. Abre la ventana de ver estacionamiento.
@@ -452,20 +451,38 @@ def abrirVentanaVerEstacionamiento(ventanaPadre):
     cargarConfiguracionDisco()
 
     if len(espaciosParqueo) == 0:
-        messagebox.showwarning("Aviso", "Primero debe configurar el tamano del estacionamiento.")
+        messagebox.showwarning("Aviso", "Primero debe configurar el tamaño del estacionamiento.")
         return
 
     ventana = tk.Toplevel(ventanaPadre)
-    ventana.title("Ver Estacionamiento")
-    ventana.resizable(False, False)
+    ventana.title("Mapa de Estacionamiento")
+    ventana.geometry("600x600") # Tamaño inicial fijo
     ventana.config(bg="#eef4fb")
 
+    # 1. Crear el Canvas y la barra de desplazamiento
+    canvas = tk.Canvas(ventana, bg="#eef4fb", highlightthickness=0)
+    scrollbar = tk.Scrollbar(ventana, orient="vertical", command=canvas.yview)
+    
+    # 2. Frame donde irán los botones
+    scrollable_frame = tk.Frame(canvas, bg="#eef4fb")
+
+    scrollable_frame.bind(
+        "<Configure>",
+        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+    )
+
+    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    # 3. Empaquetar elementos de scroll
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+    # --- DIBUJO DENTRO DE 'scrollable_frame' EN LUGAR DE 'ventana' ---
+    
     tk.Label(
-        ventana,
-        text="Mapa del Estacionamiento",
-        font=("Arial", 14, "bold"),
-        bg="#eef4fb",
-        fg="#1f4e79"
+        scrollable_frame, text="Mapa del Estacionamiento",
+        font=("Arial", 14, "bold"), bg="#eef4fb", fg="#1f4e79"
     ).grid(row=0, column=0, columnspan=5, pady=15)
 
     columnas = 5
@@ -473,56 +490,42 @@ def abrirVentanaVerEstacionamiento(ventanaPadre):
     columna = 0
 
     for espacio in espaciosParqueo:
-        if espacio["ocupado"]:
-            colorFondo = "#e74c3c"
-        else:
-            colorFondo = "#2ecc71"
-
+        colorFondo = "#e74c3c" if espacio["ocupado"] else "#2ecc71"
         etiquetaTipo = espacio["tipo"][0]
 
         botonEspacio = tk.Button(
-            ventana,
+            scrollable_frame,
             text="#" + str(espacio["numero"]) + "\n" + etiquetaTipo,
-            width=8,
-            height=4,
-            bg=colorFondo,
-            fg="white",
+            width=8, height=4, bg=colorFondo, fg="white",
             font=("Arial", 9, "bold"),
             command=lambda n=espacio["numero"]: abrirVentanaObservarEspacio(ventana, n)
         )
         botonEspacio.grid(row=fila, column=columna, padx=5, pady=5)
 
-        columna = columna + 1
+        columna += 1
         if columna == columnas:
             columna = 0
-            fila = fila + 1
+            fila += 1
 
+    # Botones inferiores (se agregan al final de la cuadrícula en el mismo frame)
     tk.Label(
-        ventana,
-        text="🟩 Libre | 🟥 Ocupado | E=Especial | G=General | El=Electrico | 🚻 Baño | 🏢 Caseta",
-        font=("Arial", 9),
-        bg="#eef4fb",
-        fg="#555555"
+        scrollable_frame,
+        text="🟩 Libre | 🟥 Ocupado | E=Especial | G=General | El=Eléctrico",
+        font=("Arial", 9), bg="#eef4fb", fg="#555555"
     ).grid(row=fila + 1, column=0, columnspan=5, pady=15)
 
     tk.Button(
-        ventana,
-        text="Reserva masiva de vehiculos",
-        width=30,
-        bg="#8e44ad",
-        fg="white",
-        command=lambda: abrirVentanaReservaMasiva(ventana)
+        scrollable_frame, text="Reserva masiva de vehículos", width=30,
+        bg="#8e44ad", fg="white", command=lambda: abrirVentanaReservaMasiva(ventana)
     ).grid(row=fila + 2, column=0, columnspan=5, pady=10)
 
     tk.Button(
-        ventana,
-        text="Regresar",
-        width=20,
-        bg="#c00000",
-        fg="white",
-        command=ventana.destroy
+        scrollable_frame, text="Regresar", width=20,
+        bg="#c00000", fg="white", command=ventana.destroy
     ).grid(row=fila + 3, column=0, columnspan=5, pady=10)
-    dibujarServicios(ventana)
+    
+    # Dibujar servicios (asegúrate de que esta función también use scrollable_frame)
+    dibujarServicios(scrollable_frame)
 
 def abrirVentanaObservarEspacio(ventanaPadre, numeroEspacio):
     """
@@ -797,48 +800,40 @@ def abrirVentanaEstacionarVehiculo(ventanaPadre, numeroEspacio):
 
 def abrirVentanaReservaMasiva(ventanaPadre):
     """
-    Funcionalidad: Abre la ventana de reserva masiva de vehiculos. Muestra
-                   el tope maximo permitido segun la regla del 5% de reserva
-                   y pide confirmacion antes de ejecutar el llenado dinamico.
+    Funcionalidad: Abre la ventana de reserva masiva de vehículos.
     Entradas:
         - ventanaPadre(tk.Toplevel): La ventana de ver estacionamiento.
-    Salidas: Ninguna. Abre la ventana de confirmacion de reserva masiva.
+    Salidas: Ninguna.
     """
     topeMasivo = calcularTopeMasivoGeneral()
 
     ventana = tk.Toplevel(ventanaPadre)
     ventana.title("Reserva Masiva de Vehiculos")
-    ventana.geometry("440x320")
-    ventana.resizable(False, False)
+    ventana.geometry("440x350")
     ventana.config(bg="#eef4fb")
 
-    tk.Label(
-        ventana,
-        text="Reserva Masiva de Vehiculos",
-        font=("Arial", 14, "bold"),
-        bg="#eef4fb",
-        fg="#1f4e79"
+    tk.Label(ventana, text="Reserva Masiva", font=("Arial", 14, "bold"), bg="#eef4fb").pack(pady=20)
+    tk.Label(ventana, text=f"Cantidad máxima permitida: {topeMasivo}", font=("Arial", 11, "bold"), bg="#eef4fb").pack(pady=5)
+
+    def confirmarReserva():
+        cantidad = reservarMasivamente()
+        if cantidad > 0:
+            messagebox.showinfo("Éxito", f"Se reservaron {cantidad} espacios.")
+            
+            # 1. Cierra la ventana de reserva actual
+            ventana.destroy() 
+            # 2. Cierra la ventana del mapa anterior (ventanaPadre)
+            ventanaPadre.destroy() 
+            # 3. Abre de nuevo el mapa actualizado
+            # Nota: Asegúrate de tener acceso a la ventana raíz o llama a la función principal
+            abrirVentanaVerEstacionamiento(tk._default_root) 
+        else:
+            messagebox.showwarning("Aviso", "No hay espacios disponibles para reserva masiva.")
+
+    tk.Button(
+        ventana, text="Confirmar Reserva", width=20, bg="#27ae60", fg="white", 
+        command=confirmarReserva
     ).pack(pady=20)
-
-    tk.Label(
-        ventana,
-        text="Este proceso llenara dinamicamente solo los\nespacios de tipo General, dejando un 5% libre\npara nuevos clientes.",
-        font=("Arial", 10),
-        bg="#eef4fb",
-        fg="#555555",
-        justify="center"
-    ).pack(pady=10)
-
-    tk.Label(
-        ventana,
-        text="Cantidad maxima permitida: " + str(topeMasivo) + " vehiculos",
-        font=("Arial", 11, "bold"),
-        bg="#eef4fb",
-        fg="#1f4e79"
-    ).pack(pady=15)
-
-    areaResultado = tk.Text(ventana, height=5, width=48, font=("Courier New", 9))
-    areaResultado.pack(pady=5)
 
     def ejecutarReservaMasiva():
         """

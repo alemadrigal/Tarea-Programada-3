@@ -37,7 +37,7 @@ configuracionParqueo = {
     "montoHora": 0,
     "tieneElectrico": False,
     "espaciosEspeciales": 0,
-    "espacioElectrico": None
+    
 }
 
 # Lista global de los espacios del estacionamiento.
