@@ -24,8 +24,8 @@ def traducirPago(tipoPago):
     return pagos.get(int(tipoPago), "Pendiente")
 
 class Estacionamiento:
-    def __init__(self, idVeiculo, info, estadia, pago):
-        self.id = idVeiculo
+    def __init__(self, idVehiculo, info, estadia, pago):
+        self.idVehiculo = idVehiculo
         self.info = info
         self.estadia = estadia
         self.pago = pago
